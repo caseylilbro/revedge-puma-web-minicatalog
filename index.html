@@ -562,6 +562,64 @@
 
     #loader.done { opacity: 0; visibility: hidden; animation: none; }
     @keyframes pulse { 50% { opacity: .55; } }
+
+        /* ===== Preview foto ===== */
+    .lb {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 10, 10, .78);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity .25s ease, visibility .25s ease;
+}
+  .lb.open { opacity: 1; visibility: visible; }
+
+  .lb img {
+    max-width: 86vw;
+    max-height: 84vh;
+    object-fit: contain;
+    background: var(--cream);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: 6px 8px 0 var(--ink);
+    transform: scale(.94);
+    transition: transform .3s cubic-bezier(.2, .7, .2, 1);
+    user-select: none;
+  }
+.lb.open img { transform: scale(1); }
+
+.lb button {
+  position: absolute;
+  background: var(--cream);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 3px 4px 0 var(--ink);
+  font: 700 var(--ui) var(--font), sans-serif;
+  padding: .5em 1em;
+  cursor: pointer;
+  transition: box-shadow .15s, transform .15s;
+}
+.lb button:hover { box-shadow: none; transform: translate(3px, 4px); }
+.lb .x { top: max(16px, env(safe-area-inset-top)); right: 16px; }
+.lb .pv, .lb .nx { top: 50%; margin-top: -1.2em; }
+.lb .pv { left: 14px; }
+.lb .nx { right: 14px; }
+.lb .ct {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--cream);
+  font-weight: 700;
+  font-size: var(--ui);
+}
+.strip .fr { cursor: pointer; }
+    
   </style>
 </head>
 
@@ -657,109 +715,201 @@
   <script>
     document.getElementById('mq').innerHTML = '<span>revedge</span>'.repeat(30);
   </script>
-
   <script>
-    (function () {
-      var s = document.getElementById('strip');
-      var orig = [].slice.call(s.children);
+  (function () {
+    var s = document.getElementById('strip');
+    var orig = [].slice.call(s.children);
+    var N = orig.length;
 
-      for (var k = 0; k < 2; k++) {
-        orig.forEach(function (f) {
-          var c = f.cloneNode(true);
-          c.setAttribute('aria-hidden', 'true');
-          s.appendChild(c);
-        });
-      }
+    // foto asli buat preview (sebelum di-clone)
+    var srcs = orig.map(function (f) {
+      return f.querySelector('.fr-in img').getAttribute('src');
+    });
 
-      var W = 0, pos = 0, last = 0, hold = 0;
-      var hover = false, drag = false, dx = 0, dl = 0;
-      var auto = false;
-      var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      function measure() {
-        W = s.children[4].offsetLeft - s.children[0].offsetLeft;
-      }
-
-      function wrap() {
-        if (!W) return;
-        var v = s.scrollLeft;
-        if (v >= 2 * W) s.scrollLeft = v - W;
-        else if (v <= 0) s.scrollLeft = v + W;
-      }
-
-      function init() {
-        measure();
-        s.scrollLeft = W;
-        pos = s.scrollLeft;
-      }
-
-      function touch() {
-        hold = performance.now() + 1800;
-      }
-
-      window.addEventListener('load', init);
-      window.addEventListener('resize', function () {
-        var r = s.scrollLeft / (W || 1);
-        measure();
-        s.scrollLeft = r * W;
-        pos = s.scrollLeft;
+    // clone 2x biar loop mulus
+    for (var k = 0; k < 2; k++) {
+      orig.forEach(function (f) {
+        var c = f.cloneNode(true);
+        c.setAttribute('aria-hidden', 'true');
+        s.appendChild(c);
       });
-      init();
+    }
+    var kids = [].slice.call(s.children);
 
-      s.addEventListener('mouseenter', function () { hover = true; });
-      s.addEventListener('mouseleave', function () { hover = false; });
-      s.addEventListener('wheel', touch, { passive: true });
-      s.addEventListener('touchstart', touch, { passive: true });
-      s.addEventListener('touchmove', touch, { passive: true });
+    var HOLD = 2200;   // diam di tiap foto (ms)
+    var DUR  = 800;    // durasi geser ke foto berikutnya (ms)
 
-      s.addEventListener('scroll', function () {
-        wrap();
-        if (!auto) pos = s.scrollLeft;
-      });
+    var step = 0, W = 0;
+    var hover = false, drag = false, moved = false, touching = false;
+    var tweening = false, userScroll = false, paused = false;
+    var dx = 0, dl = 0;
+    var timer, raf, idleT;
+    var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      s.addEventListener('mousedown', function (e) {
-        drag = true;
-        dx = e.pageX;
-        dl = s.scrollLeft;
-        s.classList.add('drag');
-      });
+    function measure() {
+      step = kids[1].offsetLeft - kids[0].offsetLeft;  // lebar foto + gap
+      W = step * N;                                    // lebar 1 set foto
+    }
 
-      window.addEventListener('mouseup', function () {
-        if (drag) {
-          drag = false;
-          s.classList.remove('drag');
-          touch();
-          pos = s.scrollLeft;
-        }
-      });
+    // loncat diam-diam antar set (isinya identik, jadi nggak kelihatan)
+    function wrap() {
+      if (!W) return;
+      var v = s.scrollLeft, d = 0;
+      if (v >= 2 * W) d = -W;
+      else if (v < W) d = W;
+      if (d) { s.scrollLeft = v + d; dl += d; }
+    }
 
-      window.addEventListener('mousemove', function (e) {
-        if (!drag) return;
-        e.preventDefault();
-        s.scrollLeft = dl - (e.pageX - dx);
-      });
+    function ease(t) {
+      return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
 
-      function tick(now) {
-        var dt = Math.min(now - (last || now), 50);
-        last = now;
-        auto = !reduce && !hover && !drag && now > hold;
-
-        if (auto) {
-          pos += dt * 0.045;
-          s.scrollLeft = pos;
+    function go(to, dur, done) {
+      cancelAnimationFrame(raf);
+      var from = s.scrollLeft, t0 = performance.now();
+      tweening = true;
+      (function f(now) {
+        var p = Math.min((now - t0) / dur, 1);
+        s.scrollLeft = from + (to - from) * ease(p);
+        if (p < 1) raf = requestAnimationFrame(f);
+        else {
+          s.scrollLeft = to;
+          tweening = false;
           wrap();
-          pos = Math.max(pos, 0);
-          if (Math.abs(s.scrollLeft - pos) > 2) pos = s.scrollLeft;
-        } else {
-          pos = s.scrollLeft;
+          if (done) done();
         }
+      })(t0);
+    }
 
-        requestAnimationFrame(tick);
-      }
+    function canAuto() {
+      return !reduce && !hover && !drag && !touching && !paused && !userScroll && !document.hidden;
+    }
 
-      requestAnimationFrame(tick);
-    })();
-  </script>
+    function schedule() {
+      clearTimeout(timer);
+      timer = setTimeout(next, HOLD);
+    }
+
+    function next() {
+      if (!canAuto()) return schedule();
+      wrap();
+      var i = Math.round(s.scrollLeft / step) + 1;
+      go(i * step, DUR, schedule);
+    }
+
+    function snap() {
+      var to = Math.round(s.scrollLeft / step) * step;
+      if (Math.abs(to - s.scrollLeft) < 1) return schedule();
+      go(to, 450, schedule);
+    }
+
+    function init() {
+      measure();
+      s.scrollLeft = W;
+      schedule();
+    }
+
+    window.addEventListener('load', init);
+    window.addEventListener('resize', function () {
+      var r = s.scrollLeft / (step || 1);
+      measure();
+      s.scrollLeft = r * step;
+    });
+    init();
+
+    s.addEventListener('mouseenter', function () { hover = true; });
+    s.addEventListener('mouseleave', function () { hover = false; schedule(); });
+    document.addEventListener('visibilitychange', schedule);
+
+    // scroll manual (wheel / trackpad / sentuhan) -> snap ke foto terdekat
+    s.addEventListener('scroll', function () {
+      if (tweening) return;
+      wrap();
+      if (drag) return;
+      userScroll = true;
+      clearTimeout(idleT);
+      idleT = setTimeout(function () {
+        userScroll = false;
+        if (!tweening && !drag && !touching) snap();
+      }, 140);
+    });
+    s.addEventListener('touchstart', function () { touching = true; cancelAnimationFrame(raf); tweening = false; }, { passive: true });
+    s.addEventListener('touchend', function () { touching = false; }, { passive: true });
+
+    // drag mouse
+    s.addEventListener('mousedown', function (e) {
+      cancelAnimationFrame(raf);
+      tweening = false;
+      drag = true;
+      moved = false;
+      dx = e.pageX;
+      dl = s.scrollLeft;
+      s.classList.add('drag');
+    });
+    window.addEventListener('mousemove', function (e) {
+      if (!drag) return;
+      e.preventDefault();
+      if (Math.abs(e.pageX - dx) > 5) moved = true;
+      s.scrollLeft = dl - (e.pageX - dx);
+    });
+    window.addEventListener('mouseup', function () {
+      if (!drag) return;
+      drag = false;
+      s.classList.remove('drag');
+      snap();
+    });
+
+    /* ===== Preview ===== */
+    var lb = document.createElement('div');
+    lb.className = 'lb';
+    lb.innerHTML =
+      '<button class="x" aria-label="Tutup">CLOSE</button>' +
+      '<button class="pv" aria-label="Sebelumnya">&larr;</button>' +
+      '<img alt="">' +
+      '<button class="nx" aria-label="Berikutnya">&rarr;</button>' +
+      '<div class="ct"></div>';
+    document.body.appendChild(lb);
+
+    var lbImg = lb.querySelector('img');
+    var lbCt = lb.querySelector('.ct');
+    var cur = 0;
+
+    function show(i) {
+      cur = (i + N) % N;
+      lbImg.src = srcs[cur];
+      lbCt.textContent = (cur + 1) + ' / ' + N;
+    }
+    function open(i) {
+      show(i);
+      paused = true;
+      lb.classList.add('open');
+      document.documentElement.style.overflow = 'hidden';
+    }
+    function close() {
+      lb.classList.remove('open');
+      document.documentElement.style.overflow = '';
+      paused = false;
+      schedule();
+    }
+
+    s.addEventListener('click', function (e) {
+      if (moved) { moved = false; return; }   // habis drag, bukan klik
+      var fr = e.target.closest('.fr');
+      if (fr) open(kids.indexOf(fr) % N);
+    });
+
+    lb.querySelector('.x').addEventListener('click', close);
+    lb.querySelector('.pv').addEventListener('click', function (e) { e.stopPropagation(); show(cur - 1); });
+    lb.querySelector('.nx').addEventListener('click', function (e) { e.stopPropagation(); show(cur + 1); });
+    lb.addEventListener('click', function (e) { if (e.target === lb) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (!lb.classList.contains('open')) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'ArrowLeft') show(cur - 1);
+      else if (e.key === 'ArrowRight') show(cur + 1);
+    });
+  })();
+</script>
 
   <script>
     (function () {
