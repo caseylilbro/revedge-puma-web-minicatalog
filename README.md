@@ -1,6 +1,6 @@
 # revedge-puma-web-minicatalog
 
-Mini catalog website for Informatics merchandise, developed as part of the PUMA Student Academic and Technology assignment.
+Mini catalog website for Informatics merchandise, developed as part of the PUMA Research and Technology assignment.
 
 **Live site:** https://caseylilbro.github.io/revedge-puma-web-minicatalog/
 
