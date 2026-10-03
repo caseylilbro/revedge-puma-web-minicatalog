@@ -51,7 +51,7 @@ The site is hosted on **GitHub Pages**, served from the `main` branch (root fold
 - All file paths are relative, so the site works from a subfolder such as `/revedge-puma-web-minicatalog/`.
 - File names are case-sensitive on the server. Keep them consistent with the paths in `index.html`.
 
-## Vibe coding
+## Vibecoding
 
 Yes, I vibe coded this, with AI help. Problem with that? Then you're pathetic.
 
