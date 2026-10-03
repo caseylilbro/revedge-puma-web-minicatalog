@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="loading">
 
 <head>
   <meta charset="utf-8">
@@ -542,10 +542,32 @@
       .logo { font-size: 7vw; }
       .marq { font-size: 5vw; }
     }
+    html.loading, html.loading body { overflow: hidden; }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--yellow);
+      color: var(--ink);
+      font-family: var(--font-display);
+      font-size: 14vw;
+      letter-spacing: -.02em;
+      animation: pulse 1.2s ease-in-out infinite;
+      transition: opacity .5s ease, visibility .5s ease;
+    }
+
+    #loader.done { opacity: 0; visibility: hidden; animation: none; }
+    @keyframes pulse { 50% { opacity: .55; } }
   </style>
 </head>
 
 <body>
+  <div id="loader">revedge</div>
+  <noscript><style>#loader { display: none; }</style></noscript>
 
   <section class="hero" id="home">
     <div class="ghost g1">revedge</div>
@@ -831,6 +853,23 @@ function t(t,e,i){return Math.max(t,Math.min(e,i))}var e=class{isRunning=!1;valu
       }
       requestAnimationFrame(raf);
     })();
+  </script>
+
+  <script>
+  (function () {
+    var loader = document.getElementById('loader');
+    var root = document.documentElement;
+
+    function hide() {
+      loader.classList.add('done');
+      root.classList.remove('loading');
+    }
+
+    if (document.readyState === 'complete') hide();
+    else window.addEventListener('load', hide);
+
+    setTimeout(hide, 8000);
+  })();
   </script>
 
 </body>
